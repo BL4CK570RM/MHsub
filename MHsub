@@ -1,0 +1,183 @@
+#!/bin/bash
+
+# Colors for output
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+NC="\e[0m" # No color
+
+# Print MHsub ASCII Art Banner
+print_banner() {
+  echo -e "${GREEN}
+                                                                                        bbbbbbbb            
+MMMMMMMM               MMMMMMMMHHHHHHHHH     HHHHHHHHH                                  b::::::b            
+M:::::::M             M:::::::MH:::::::H     H:::::::H                                  b::::::b            
+M::::::::M           M::::::::MH:::::::H     H:::::::H                                  b::::::b            
+M:::::::::M         M:::::::::MHH::::::H     H::::::HH                                   b:::::b            
+M::::::::::M       M::::::::::M  H:::::H     H:::::H      ssssssssss   uuuuuu    uuuuuu  b:::::bbbbbbbbb    
+M:::::::::::M     M:::::::::::M  H:::::H     H:::::H    ss::::::::::s  u::::u    u::::u  b::::::::::::::bb  
+M:::::::M::::M   M::::M:::::::M  H::::::HHHHH::::::H  ss:::::::::::::s u::::u    u::::u  b::::::::::::::::b 
+M::::::M M::::M M::::M M::::::M  H:::::::::::::::::H  s::::::ssss:::::su::::u    u::::u  b:::::bbbbb:::::::b
+M::::::M  M::::M::::M  M::::::M  H:::::::::::::::::H   s:::::s  ssssss u::::u    u::::u  b:::::b    b::::::b
+M::::::M   M:::::::M   M::::::M  H::::::HHHHH::::::H     s::::::s      u::::u    u::::u  b:::::b     b:::::b
+M::::::M    M:::::M    M::::::M  H:::::H     H:::::H        s::::::s   u::::u    u::::u  b:::::b     b:::::b
+M::::::M     MMMMM     M::::::M  H:::::H     H:::::H  ssssss   s:::::s u:::::uuuu:::::u  b:::::b     b:::::b
+M::::::M               M::::::MHH::::::H     H::::::HHs:::::ssss::::::su:::::::::::::::uub:::::bbbbbb::::::b
+M::::::M               M::::::MH:::::::H     H:::::::Hs::::::::::::::s  u:::::::::::::::ub::::::::::::::::b 
+M::::::M               M::::::MH:::::::H     H:::::::H s:::::::::::ss    uu::::::::uu:::ub:::::::::::::::b  
+MMMMMMMM               MMMMMMMMHHHHHHHHH     HHHHHHHHH  sssssssssss        uuuuuuuu  uuuubbbbbbbbbbbbbbbb    
+
+       🔍 Subdomain Enumeration Tool
+     🚀 Coded by BL4CK_570RM | 2025
+${NC}"
+}
+
+# Help Function
+usage() {
+  print_banner
+  echo -e "${YELLOW}Usage:${NC}"
+  echo -e "  MHsub -d <domain> -a <all_domains_output.txt> -l <live_domains_output.txt>"
+  echo -e "  MHsub -h | --help"
+  echo -e ""
+  echo -e "${YELLOW}Required Options:${NC}"
+  echo -e "  -d, --domain        Target domain to enumerate (e.g., example.com)"
+  echo -e "  -a, --all-subs      Output file to save all discovered subdomains"
+  echo -e "  -l, --live-subs     Output file to save live subdomains"
+  echo -e ""
+  echo -e "${YELLOW}Optional Flags:${NC}"
+  echo -e "  -h, --help          Show this help message and exit"
+  echo -e ""
+  echo -e "${YELLOW}Example:${NC}"
+  echo -e "  MHsub -d example.com -a all_domains.txt -l live_domains.txt"
+  echo -e "  MHsub --domain example.com --all-subs all.txt --live-subs live.txt"
+  echo -e ""
+  echo -e "${YELLOW}Description:${NC}"
+  echo -e "  MHsub is a powerful subdomain enumeration tool that combines multiple techniques"
+  echo -e "  to discover subdomains and identify live websites. It uses the following tools:"
+  echo -e "  - Subfinder, Assetfinder, Amass, Sublist3r, Findomain, and crt.sh"
+  echo -e "  - httpx for identifying live subdomains"
+  echo -e ""
+  echo -e "${YELLOW}Output Files:${NC}"
+  echo -e "  - The 'all_subs' file will contain all unique subdomains found"
+  echo -e "  - The 'live_subs' file will contain only the live subdomains"
+  echo -e "  - An additional file with '_full_httpx.txt' suffix will contain detailed httpx results"
+  exit 0
+}
+
+# Check if required tools are installed
+check_tools() {
+  local tools=("subfinder" "assetfinder" "amass" "sublist3r" "findomain" "jq" "httpx")
+  local missing=()
+  
+  for tool in "${tools[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      missing+=("$tool")
+    fi
+  done
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo -e "${RED}[!] The following tools are missing:${NC}"
+    for m in "${missing[@]}"; do
+      echo -e "  - $m"
+    done
+    echo -e "${YELLOW}Please install them before running MHsub.${NC}"
+    exit 1
+  fi
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -d|--domain)
+      DOMAIN="$2"
+      shift 2
+      ;;
+    -a|--all-subs)
+      ALL_SUBS="$2"
+      shift 2
+      ;;
+    -l|--live-subs)
+      LIVE_SUBS="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      echo -e "${RED}[!] Unknown argument: $1${NC}"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Validate arguments
+if [ -z "$DOMAIN" ] || [ -z "$ALL_SUBS" ] || [ -z "$LIVE_SUBS" ]; then
+  echo -e "${RED}[!] Error: Missing required arguments${NC}"
+  usage
+  exit 1
+fi
+
+print_banner
+
+# Check for required tools
+check_tools
+
+# Create temp directory
+TMPDIR=$(mktemp -d)
+echo -e "${GREEN}[+] Created temporary working directory: $TMPDIR${NC}"
+
+# Function to run tools with error handling
+run_tool() {
+  local tool_name="$1"
+  local command="$2"
+  local output_file="$3"
+  
+  echo -e "${BLUE}[+] Running $tool_name...${NC}"
+  if eval "$command" > "$output_file" 2>&1; then
+    local count=$(wc -l < "$output_file" | tr -d ' ')
+    echo -e "${GREEN}[+] $tool_name found $count subdomains${NC}"
+  else
+    echo -e "${RED}[!] $tool_name failed to run${NC}"
+    touch "$output_file"
+  fi
+}
+
+# Run all enumeration tools in parallel
+echo -e "${GREEN}[+] Starting subdomain enumeration for: $DOMAIN${NC}"
+
+run_tool "Subfinder" "subfinder -d \"$DOMAIN\" -silent" "$TMPDIR/subfinder.txt" &
+run_tool "Assetfinder" "assetfinder --subs-only \"$DOMAIN\"" "$TMPDIR/assetfinder.txt" &
+run_tool "Amass" "amass enum -passive -d \"$DOMAIN\"" "$TMPDIR/amass.txt" &
+run_tool "Sublist3r" "sublist3r -d \"$DOMAIN\" -o -" "$TMPDIR/sublister.txt" &
+run_tool "Findomain" "findomain -t \"$DOMAIN\" -q" "$TMPDIR/findomain.txt" &
+run_tool "crt.sh" "curl -s \"https://crt.sh/?q=%25.$DOMAIN&output=json\" | jq -r '.[].name_value' | sed 's/\\*\\.//g'" "$TMPDIR/crtsh.txt" &
+
+# Wait for all background processes to complete
+wait
+
+# Combine and deduplicate results
+echo -e "${BLUE}[+] Combining and deduplicating results...${NC}"
+cat "$TMPDIR"/*.txt | sort -u > "$ALL_SUBS"
+TOTAL_SUBS=$(wc -l < "$ALL_SUBS" | tr -d ' ')
+echo -e "${GREEN}[+] Found $TOTAL_SUBS unique subdomains. Saved to: $ALL_SUBS${NC}"
+
+# Check for live subdomains
+echo -e "${BLUE}[+] Checking for live subdomains using httpx...${NC}"
+httpx -l "$ALL_SUBS" -silent -status-code -title -tech-detect -o "$TMPDIR/httpx_results.txt" 2>/dev/null
+
+# Extract just the URLs from httpx output
+awk '{print $1}' "$TMPDIR/httpx_results.txt" > "$LIVE_SUBS"
+LIVE_COUNT=$(wc -l < "$LIVE_SUBS" | tr -d ' ')
+echo -e "${GREEN}[+] Found $LIVE_COUNT live subdomains. Saved to: $LIVE_SUBS${NC}"
+
+# Optional: Save full httpx results
+FULL_HTTPX="${LIVE_SUBS%.*}_full_httpx.txt"
+cp "$TMPDIR/httpx_results.txt" "$FULL_HTTPX"
+echo -e "${GREEN}[+] Full httpx results saved to: $FULL_HTTPX${NC}"
+
+# Cleanup
+echo -e "${BLUE}[+] Cleaning up temporary files...${NC}"
+rm -rf "$TMPDIR"
+echo -e "${GREEN}[+] Done!${NC}"
