@@ -1,2 +1,6 @@
 go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+git clone https://github.com/BL4CK570RM/MHsub.git
+cd MHsub
+chmod +x MHsub.sh
+sudo cp MHsub.sh /usr/local/bin/MHsub
