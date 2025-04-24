@@ -25,4 +25,4 @@ MHsub (Maximum Hunt for Subdomains) is a powerful and flexible Bash-based tool f
 ## 🛠️ Usage
 
 ```bash
-bash MHsub.sh -d example.com -a all.txt -l live.txt
+MHsub -d example.com -a all.txt -l live.txt
