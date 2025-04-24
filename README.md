@@ -1,6 +1,6 @@
-# MHsub 🔍 — Multi-Tool Subdomain Enumeration
+# MHsub 🔍 — Maximum Hunt for Subdomains
 
-**MHsub** is a powerful and flexible Bash-based subdomain enumeration tool developed by [BL4CK_570RM]. It combines multiple subdomain discovery tools to ensure comprehensive results and filters for live subdomains efficiently.
+MHsub (Maximum Hunt for Subdomains) is a powerful and flexible Bash-based tool for subdomain enumeration tool developed by [BL4CK_570RM]. It combines multiple subdomain discovery tools to ensure comprehensive results and filters for live subdomains efficiently.
 
 ---
 
