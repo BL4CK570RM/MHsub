@@ -1,0 +1,19 @@
+Ensure these tools are installed and accessible in your system's PATH:
+
+subfinder
+
+assetfinder
+
+amass
+
+sublist3r
+
+findomain
+
+httpx
+
+curl
+
+jq
+
+sort, uniq, xargs (comes with most Linux distros)
