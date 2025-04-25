@@ -29,16 +29,24 @@ Usage:
 
 Required Options:
   -d, --domain        Target domain to enumerate (e.g., example.com)
+  
   -a, --all-subs      Output file to save all discovered subdomains
+  
   -l, --live-subs     Output file to save live subdomains
+  
 
 Scan Modes:
   -m, --mode          Scan mode (default: lite)
+  
       lite            Fast scan (skip Amass for speed)
+      
       deep            Comprehensive scan (include Amass)
+      
 
 Optional Flags:
+
   -h, --help          Show this help message and exit
+  -up, --update       Update this tool 
 
 Examples:
   MHsub -d example.com -a all.txt -l live.txt -m lite
