@@ -118,7 +118,7 @@ update_tool() {
   exec "$0" "$@"
 }
 
-# ... [rest of your existing script remains exactly the same until the argument parsing section]
+
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
