@@ -62,31 +62,37 @@ check_update() {
 
 # Update function
 update_tool() {
-  echo -e "${BLUE}[+] Updating MHsub...${NC}"
+  echo -e "${BLUE}[+] Checking for updates...${NC}"
   
-  # Download new version
+  # Temporary file for download
   TEMP_FILE=$(mktemp)
-  curl -s https://raw.githubusercontent.com/BL4CK570RM/MHsub/main/MHsub.sh -o "$TEMP_FILE"
-  
-  if [ $? -ne 0 ]; then
-    echo -e "${RED}[!] Failed to download update${NC}"
+
+  # Try downloading the new version
+  if ! curl -s https://raw.githubusercontent.com/BL4CK570RM/MHsub/main/MHsub.sh -o "$TEMP_FILE"; then
+    echo -e "${RED}[!] Failed to download update. Check your internet connection.${NC}"
     return 1
   fi
-  
-  # Check if downloaded file is valid
-  if ! grep -q "MHsub ASCII Art Banner" "$TEMP_FILE"; then
-    echo -e "${RED}[!] Downloaded file is not valid${NC}"
+
+  # Validate downloaded script
+  if ! grep -q "# MHsub 🔍 — Maximum Hunt for Subdomains" "$TEMP_FILE"; then
+    echo -e "${RED}[!] Downloaded file is not valid.${NC}"
+    echo -e "${YELLOW}[DEBUG] First few lines of the downloaded file:${NC}"
+    head "$TEMP_FILE"
     rm "$TEMP_FILE"
     return 1
   fi
-  
-  # Install new version
+
+  # Backup current version
+  cp "$0" "$0.bak"
+  echo -e "${YELLOW}[+] Backup saved as $0.bak${NC}"
+
+  # Replace current file with new version
   chmod +x "$TEMP_FILE"
   mv "$TEMP_FILE" "$0"
-  
-  echo -e "${GREEN}[+] Successfully updated to version $LATEST_VERSION${NC}"
+
+  echo -e "${GREEN}[+] Successfully updated MHsub!${NC}"
   echo -e "${GREEN}[+] Restarting the script...${NC}"
-  
+
   # Restart the script
   exec "$0" "$@"
 }
