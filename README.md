@@ -22,7 +22,28 @@ MHsub (Maximum Hunt for Subdomains) is a powerful and flexible Bash-based tool f
 
 ---
 
-## 🛠️ Usage
+Usage:
+  MHsub -d <domain> -a <all_domains_output.txt> -l <live_domains_output.txt> [-m lite|deep]
+  MHsub -h | --help
 
-```bash
-MHsub -d example.com -a all.txt -l live.txt
+Required Options:
+  -d, --domain        Target domain to enumerate (e.g., example.com)
+  -a, --all-subs      Output file to save all discovered subdomains
+  -l, --live-subs     Output file to save live subdomains
+
+Scan Modes:
+  -m, --mode          Scan mode (default: lite)
+      lite            Fast scan (skip Amass for speed)
+      deep            Comprehensive scan (include Amass)
+
+Optional Flags:
+  -h, --help          Show this help message and exit
+
+Examples:
+  MHsub -d example.com -a all.txt -l live.txt -m lite
+  MHsub --domain example.com --all-subs all.txt --live-subs live.txt --mode deep
+
+Description:
+  MHsub is a powerful subdomain enumeration tool with two scan modes:
+  - Lite mode (fast): Uses subfinder, assetfinder, sublister, findomain, crt.sh
+  - Deep mode (slow): Adds Amass for comprehensive discovery
