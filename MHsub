@@ -37,7 +37,7 @@ ${NC}"
 usage() {
   print_banner
   echo -e "${YELLOW}Usage:${NC}"
-  echo -e "  MHsub -d <domain> -a <all_domains_output.txt> -l <live_domains_output.txt>"
+  echo -e "  MHsub -d <domain> -a <all_domains_output.txt> -l <live_domains_output.txt> [-m lite|deep]"
   echo -e "  MHsub -h | --help"
   echo -e ""
   echo -e "${YELLOW}Required Options:${NC}"
@@ -45,29 +45,32 @@ usage() {
   echo -e "  -a, --all-subs      Output file to save all discovered subdomains"
   echo -e "  -l, --live-subs     Output file to save live subdomains"
   echo -e ""
+  echo -e "${YELLOW}Scan Modes:${NC}"
+  echo -e "  -m, --mode          Scan mode (default: lite)"
+  echo -e "      lite            Fast scan (skip Amass for speed)"
+  echo -e "      deep            Comprehensive scan (include Amass)"
+  echo -e ""
   echo -e "${YELLOW}Optional Flags:${NC}"
   echo -e "  -h, --help          Show this help message and exit"
   echo -e ""
-  echo -e "${YELLOW}Example:${NC}"
-  echo -e "  MHsub -d example.com -a all_domains.txt -l live_domains.txt"
-  echo -e "  MHsub --domain example.com --all-subs all.txt --live-subs live.txt"
+  echo -e "${YELLOW}Examples:${NC}"
+  echo -e "  MHsub -d example.com -a all.txt -l live.txt -m lite"
+  echo -e "  MHsub --domain example.com --all-subs all.txt --live-subs live.txt --mode deep"
   echo -e ""
   echo -e "${YELLOW}Description:${NC}"
-  echo -e "  MHsub is a powerful subdomain enumeration tool that combines multiple techniques"
-  echo -e "  to discover subdomains and identify live websites. It uses the following tools:"
-  echo -e "  - Subfinder, Assetfinder, Amass, Sublist3r, Findomain, and crt.sh"
-  echo -e "  - httpx for identifying live subdomains"
-  echo -e ""
-  echo -e "${YELLOW}Output Files:${NC}"
-  echo -e "  - The 'all_subs' file will contain all unique subdomains found"
-  echo -e "  - The 'live_subs' file will contain only the live subdomains"
-  echo -e "  - An additional file with '_full_httpx.txt' suffix will contain detailed httpx results"
+  echo -e "  MHsub is a powerful subdomain enumeration tool with two scan modes:"
+  echo -e "  - Lite mode (fast): Uses subfinder, assetfinder, sublister, findomain, crt.sh"
+  echo -e "  - Deep mode (slow): Adds Amass for comprehensive discovery"
   exit 0
 }
 
 # Check if required tools are installed
 check_tools() {
-  local tools=("subfinder" "assetfinder" "amass" "sublist3r" "findomain" "jq" "httpx")
+  local tools=("subfinder" "assetfinder" "sublist3r" "findomain" "jq" "httpx")
+  if [[ "$MODE" == "deep" ]]; then
+    tools+=("amass")
+  fi
+  
   local missing=()
   
   for tool in "${tools[@]}"; do
@@ -86,6 +89,9 @@ check_tools() {
   fi
 }
 
+# Initialize variables
+MODE="lite" # Default mode
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -99,6 +105,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     -l|--live-subs)
       LIVE_SUBS="$2"
+      shift 2
+      ;;
+    -m|--mode)
+      MODE="$2"
+      if [[ "$MODE" != "lite" && "$MODE" != "deep" ]]; then
+        echo -e "${RED}[!] Invalid mode. Use 'lite' or 'deep'${NC}"
+        exit 1
+      fi
       shift 2
       ;;
     -h|--help)
@@ -127,6 +141,7 @@ check_tools
 # Create temp directory
 TMPDIR=$(mktemp -d)
 echo -e "${GREEN}[+] Created temporary working directory: $TMPDIR${NC}"
+echo -e "${GREEN}[+] Running in ${BLUE}$MODE${GREEN} mode${NC}"
 
 # Function to run tools with error handling
 run_tool() {
@@ -144,15 +159,20 @@ run_tool() {
   fi
 }
 
-# Run all enumeration tools in parallel
+# Run enumeration tools in parallel
 echo -e "${GREEN}[+] Starting subdomain enumeration for: $DOMAIN${NC}"
 
 run_tool "Subfinder" "subfinder -d \"$DOMAIN\" -silent" "$TMPDIR/subfinder.txt" &
 run_tool "Assetfinder" "assetfinder --subs-only \"$DOMAIN\"" "$TMPDIR/assetfinder.txt" &
-run_tool "Amass" "amass enum -passive -d \"$DOMAIN\"" "$TMPDIR/amass.txt" &
 run_tool "Sublist3r" "sublist3r -d \"$DOMAIN\" -o -" "$TMPDIR/sublister.txt" &
 run_tool "Findomain" "findomain -t \"$DOMAIN\" -q" "$TMPDIR/findomain.txt" &
 run_tool "crt.sh" "curl -s \"https://crt.sh/?q=%25.$DOMAIN&output=json\" | jq -r '.[].name_value' | sed 's/\\*\\.//g'" "$TMPDIR/crtsh.txt" &
+
+# Only run Amass in deep mode
+if [[ "$MODE" == "deep" ]]; then
+  echo -e "${YELLOW}[!] Running Amass (this may take a while)...${NC}"
+  run_tool "Amass" "amass enum -passive -d \"$DOMAIN\"" "$TMPDIR/amass.txt" &
+fi
 
 # Wait for all background processes to complete
 wait
