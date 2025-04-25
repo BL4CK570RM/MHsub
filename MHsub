@@ -51,6 +51,17 @@ check_update() {
   fi
   return 0
 }
+check_for_update() {
+    local current_version="1.0.0"
+    local latest_version=$(curl -s https://raw.githubusercontent.com/yourusername/MHsub/main/version.txt)
+
+    if [[ "$latest_version" != "$current_version" ]]; then
+        echo -e "\033[1;31m[!]\033[0m New version available: $latest_version (Current: $current_version)"
+        echo -e "\033[1;31m[!]\033[0m Run 'MHsub --update' to get the latest version."
+    else
+        echo -e "\033[1;32m[*]\033[0m You are already using the latest version: $current_version"
+    fi
+}
 
 LAST_UPDATE_FILE="$HOME/.mhsub_last_update_check"
 if [ ! -f "$LAST_UPDATE_FILE" ] || [ "$(date +%s)" -gt $(( $(date +%s -r "$LAST_UPDATE_FILE") + 86400 )) ]; then
@@ -77,8 +88,7 @@ check_tools() {
 
 # Check for update only and exit
 if [[ "$1" == "-up" || "$1" == "--update" ]]; then
-    check_update
-    if [[ $? -eq 1 ]]; then
+    if ! check_update; then
         read -p "Do you want to update now? [Y/n] " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
