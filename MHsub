@@ -75,6 +75,11 @@ check_tools() {
   done
 }
 
+# Check for update only and exit
+if [[ "$1" == "-up" || "$1" == "--update" ]]; then
+    check_for_update
+    exit 0
+fi
 
 # Start Subdomain Enumeration
 echo -e "${BLUE}[+] Starting subdomain enumeration for: $DOMAIN${NC}"
