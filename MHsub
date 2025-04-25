@@ -77,9 +77,19 @@ check_tools() {
 
 # Check for update only and exit
 if [[ "$1" == "-up" || "$1" == "--update" ]]; then
-    check_for_update
+    check_update
+    if [[ $? -eq 1 ]]; then
+        read -p "Do you want to update now? [Y/n] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+            update_tool
+        fi
+    else
+        echo -e "${GREEN}[✓] You already have the latest version ($VERSION).${NC}"
+    fi
     exit 0
 fi
+
 
 # Start Subdomain Enumeration
 echo -e "${BLUE}[+] Starting subdomain enumeration for: $DOMAIN${NC}"
