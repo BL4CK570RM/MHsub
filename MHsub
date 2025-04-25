@@ -42,37 +42,83 @@ MMMMMMMM               MMMMMMMMHHHHHHHHH     HHHHHHHHH  sssssssssss        uuuuu
 ${NC}"
 }
 
-# Check for updates
+# Check for updates on script run (only once per day)
 check_update() {
-  echo -e "${BLUE}[+] Checking for updates...${NC}"
-  
-  # Get version file from GitHub
-  VERSION_URL="$RAW_BASE_URL/version.txt"
-  TEMP_FILE=$(mktemp)
-  
-  if ! curl -s "$VERSION_URL" -o "$TEMP_FILE"; then
-    echo -e "${RED}[!] Failed to check for updates${NC}"
-    echo -e "${YELLOW}[DEBUG] Tried to fetch from: $VERSION_URL${NC}"
+  LATEST_VERSION=$(curl -s "$RAW_BASE_URL/version.txt")
+  if [[ "$LATEST_VERSION" != "$VERSION" ]]; then
+    echo -e "${YELLOW}[!] New version available: $LATEST_VERSION (Current: $VERSION)${NC}"
     return 1
   fi
-  
-  LATEST_VERSION=$(cat "$TEMP_FILE" 2>/dev/null)
-  rm "$TEMP_FILE"
-  
-  if [ -z "$LATEST_VERSION" ]; then
-    echo -e "${RED}[!] Could not determine latest version${NC}"
-    return 1
-  fi
-  
-  if [ "$VERSION" != "$LATEST_VERSION" ]; then
-    echo -e "${YELLOW}[!] New version available: $LATEST_VERSION${NC}"
-    echo -e "${YELLOW}[!] Current version: $VERSION${NC}"
-    return 1
-  else
-    echo -e "${GREEN}[+] You have the latest version${NC}"
-    return 0
-  fi
+  return 0
 }
+
+LAST_UPDATE_FILE="$HOME/.mhsub_last_update_check"
+if [ ! -f "$LAST_UPDATE_FILE" ] || [ "$(date +%s)" -gt $(( $(date +%s -r "$LAST_UPDATE_FILE") + 86400 )) ]; then
+  if ! check_update; then
+    echo -e "${YELLOW}[!] Run 'MHsub --update' to get the latest version.${NC}"
+  fi
+  date +%s > "$LAST_UPDATE_FILE"
+fi
+
+# Check if required tools are available
+check_tools() {
+  REQUIRED_TOOLS=("subfinder" "assetfinder" "sublist3r" "findomain" "httpx" "jq" "curl")
+  if [ "$MODE" == "deep" ]; then
+    REQUIRED_TOOLS+=("amass")
+  fi
+
+  for tool in "${REQUIRED_TOOLS[@]}"; do
+    if ! command -v "$tool" &> /dev/null; then
+      echo -e "${RED}[!] Required tool '$tool' is not installed.${NC}"
+      exit 1
+    fi
+  done
+}
+
+
+# Start Subdomain Enumeration
+echo -e "${BLUE}[+] Starting subdomain enumeration for: $DOMAIN${NC}"
+TEMP_DIR=$(mktemp -d)
+ALL_TEMP="$TEMP_DIR/all_temp.txt"
+touch "$ALL_TEMP"
+
+# Subdomain tools (lite)
+echo -e "${BLUE}[+] Running Subfinder...${NC}"
+subfinder -d "$DOMAIN" -silent >> "$ALL_TEMP"
+
+echo -e "${BLUE}[+] Running Assetfinder...${NC}"
+assetfinder --subs-only "$DOMAIN" >> "$ALL_TEMP"
+
+echo -e "${BLUE}[+] Running Sublist3r...${NC}"
+sublist3r -d "$DOMAIN" -o "$TEMP_DIR/sublister.txt" > /dev/null
+cat "$TEMP_DIR/sublister.txt" >> "$ALL_TEMP"
+
+echo -e "${BLUE}[+] Running Findomain...${NC}"
+findomain -t "$DOMAIN" -q >> "$ALL_TEMP"
+
+echo -e "${BLUE}[+] Running crt.sh search...${NC}"
+curl -s "https://crt.sh/?q=%25.$DOMAIN&output=json" | jq -r '.[].name_value' | sed 's/\*\.//g' >> "$ALL_TEMP"
+
+# If deep mode is selected
+if [ "$MODE" == "deep" ]; then
+  echo -e "${BLUE}[+] Running Amass... (this may take some time)${NC}"
+  amass enum -passive -d "$DOMAIN" >> "$ALL_TEMP"
+fi
+
+# Remove duplicates and save all subdomains
+sort -u "$ALL_TEMP" > "$ALL_SUBS"
+echo -e "${GREEN}[+] All subdomains saved to: $ALL_SUBS${NC}"
+
+# Check for live subdomains
+echo -e "${BLUE}[+] Probing for live subdomains using httpx...${NC}"
+cat "$ALL_SUBS" | httpx -silent -status-code -title -tech-detect > "$LIVE_SUBS"
+echo -e "${GREEN}[+] Live subdomains saved to: $LIVE_SUBS${NC}"
+
+# Cleanup
+rm -rf "$TEMP_DIR"
+
+echo -e "${GREEN}[✓] MHsub Scan Completed Successfully!${NC}"
+
 
 # Update function
 update_tool() {
@@ -231,45 +277,6 @@ check_tools() {
 
 # Initialize variables
 MODE="lite" # Default mode
-
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -d|--domain)
-      DOMAIN="$2"
-      shift 2
-      ;;
-    -a|--all-subs)
-      ALL_SUBS="$2"
-      shift 2
-      ;;
-    -l|--live-subs)
-      LIVE_SUBS="$2"
-      shift 2
-      ;;
-    -m|--mode)
-      MODE="$2"
-      if [[ "$MODE" != "lite" && "$MODE" != "deep" ]]; then
-        echo -e "${RED}[!] Invalid mode. Use 'lite' or 'deep'${NC}"
-        exit 1
-      fi
-      shift 2
-      ;;
-    -up|--update)
-      check_update || true
-      update_tool
-      exit 0
-      ;;
-    -h|--help)
-      usage
-      ;;
-    *)
-      echo -e "${RED}[!] Unknown argument: $1${NC}"
-      usage
-      exit 1
-      ;;
-  esac
-done
 
 # Validate arguments
 if [ -z "$DOMAIN" ] || [ -z "$ALL_SUBS" ] || [ -z "$LIVE_SUBS" ]; then
