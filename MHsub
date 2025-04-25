@@ -10,6 +10,12 @@ NC="\e[0m" # No color
 # Current version
 VERSION="1.0.0"
 
+# GitHub repository information
+GITHUB_USER="BL4CK570RM"
+GITHUB_REPO="MHsub"
+GITHUB_BRANCH="main"
+RAW_BASE_URL="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH"
+
 # Print MHsub ASCII Art Banner
 print_banner() {
   echo -e "${GREEN}
@@ -39,16 +45,24 @@ ${NC}"
 # Check for updates
 check_update() {
   echo -e "${BLUE}[+] Checking for updates...${NC}"
-  TEMP_FILE=$(mktemp)
-  curl -s https://raw.githubusercontent.com/BL4CK570RM/MHsub/main/version.txt -o "$TEMP_FILE"
   
-  if [ $? -ne 0 ]; then
+  # Get version file from GitHub
+  VERSION_URL="$RAW_BASE_URL/version.txt"
+  TEMP_FILE=$(mktemp)
+  
+  if ! curl -s "$VERSION_URL" -o "$TEMP_FILE"; then
     echo -e "${RED}[!] Failed to check for updates${NC}"
-    return
+    echo -e "${YELLOW}[DEBUG] Tried to fetch from: $VERSION_URL${NC}"
+    return 1
   fi
   
-  LATEST_VERSION=$(cat "$TEMP_FILE")
+  LATEST_VERSION=$(cat "$TEMP_FILE" 2>/dev/null)
   rm "$TEMP_FILE"
+  
+  if [ -z "$LATEST_VERSION" ]; then
+    echo -e "${RED}[!] Could not determine latest version${NC}"
+    return 1
+  fi
   
   if [ "$VERSION" != "$LATEST_VERSION" ]; then
     echo -e "${YELLOW}[!] New version available: $LATEST_VERSION${NC}"
@@ -62,40 +76,97 @@ check_update() {
 
 # Update function
 update_tool() {
-  echo -e "${BLUE}[+] Checking for updates...${NC}"
+  echo -e "${BLUE}[+] Starting update process...${NC}"
   
-  # Temporary file for download
+  # Get the script URL
+  SCRIPT_URL="$RAW_BASE_URL/MHsub.sh"
   TEMP_FILE=$(mktemp)
-
-  # Try downloading the new version
-  if ! curl -s https://raw.githubusercontent.com/BL4CK570RM/MHsub/main/MHsub.sh -o "$TEMP_FILE"; then
-    echo -e "${RED}[!] Failed to download update. Check your internet connection.${NC}"
+  
+  echo -e "${BLUE}[+] Downloading latest version from GitHub...${NC}"
+  if ! curl -s "$SCRIPT_URL" -o "$TEMP_FILE"; then
+    echo -e "${RED}[!] Failed to download update${NC}"
+    echo -e "${YELLOW}[DEBUG] Tried to fetch from: $SCRIPT_URL${NC}"
     return 1
   fi
-
-  # Validate downloaded script
-  if ! grep -q "# MHsub 🔍 — Maximum Hunt for Subdomains" "$TEMP_FILE"; then
-    echo -e "${RED}[!] Downloaded file is not valid.${NC}"
-    echo -e "${YELLOW}[DEBUG] First few lines of the downloaded file:${NC}"
-    head "$TEMP_FILE"
+  
+  # Validate the downloaded script
+  if ! grep -q "MHsub 🔍 — Maximum Hunt for Subdomains" "$TEMP_FILE"; then
+    echo -e "${RED}[!] Downloaded file is not a valid MHsub script${NC}"
+    echo -e "${YELLOW}[DEBUG] First 3 lines of downloaded file:${NC}"
+    head -n 3 "$TEMP_FILE"
     rm "$TEMP_FILE"
     return 1
   fi
-
-  # Backup current version
-  cp "$0" "$0.bak"
-  echo -e "${YELLOW}[+] Backup saved as $0.bak${NC}"
-
-  # Replace current file with new version
+  
+  # Create backup
+  BACKUP_FILE="$0.bak"
+  echo -e "${YELLOW}[+] Creating backup at $BACKUP_FILE${NC}"
+  cp "$0" "$BACKUP_FILE"
+  
+  # Install new version
+  echo -e "${BLUE}[+] Installing new version...${NC}"
   chmod +x "$TEMP_FILE"
-  mv "$TEMP_FILE" "$0"
-
-  echo -e "${GREEN}[+] Successfully updated MHsub!${NC}"
+  if ! mv "$TEMP_FILE" "$0"; then
+    echo -e "${RED}[!] Failed to install update - try running with sudo${NC}"
+    return 1
+  fi
+  
+  echo -e "${GREEN}[+] Successfully updated to version $LATEST_VERSION${NC}"
   echo -e "${GREEN}[+] Restarting the script...${NC}"
-
+  
   # Restart the script
   exec "$0" "$@"
 }
+
+# ... [rest of your existing script remains exactly the same until the argument parsing section]
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -d|--domain)
+      DOMAIN="$2"
+      shift 2
+      ;;
+    -a|--all-subs)
+      ALL_SUBS="$2"
+      shift 2
+      ;;
+    -l|--live-subs)
+      LIVE_SUBS="$2"
+      shift 2
+      ;;
+    -m|--mode)
+      MODE="$2"
+      if [[ "$MODE" != "lite" && "$MODE" != "deep" ]]; then
+        echo -e "${RED}[!] Invalid mode. Use 'lite' or 'deep'${NC}"
+        exit 1
+      fi
+      shift 2
+      ;;
+    -up|--update)
+      if check_update; then
+        exit 0
+      else
+        read -p "Do you want to update now? [Y/n] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+          update_tool
+        fi
+        exit 0
+      fi
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      echo -e "${RED}[!] Unknown argument: $1${NC}"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# ... [rest of your existing script remains exactly the same]
 
 # Help Function
 usage() {
