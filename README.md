@@ -48,6 +48,24 @@ Optional Flags:
   -h, --help          Show this help message and exit
   -up, --update       Update this tool 
 
+🔧 Setup Tip:
+
+If running `MHsub -h` gives you the following error:
+  /usr/local/bin/MHsub: 1: 404:: not found
+
+It means the binary isn't executable or is misconfigured. Here's how to fix it:
+
+👉 To run it from the current directory:
+  sudo chmod +x ./MHsub
+  ./MHsub -h
+
+🌍 To use it from anywhere on your system:
+  sudo rm /usr/local/bin/MHsub
+  sudo cp MHsub /usr/local/bin/MHsub
+  sudo chmod +x /usr/local/bin/MHsub
+
+Now you can use `MHsub` globally from any directory
+
 Examples:
   MHsub -d example.com -a all.txt -l live.txt -m lite
   
